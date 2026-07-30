@@ -5,21 +5,150 @@ from src.environment import SafeControllerGrid
 from src.expert import QLearningExpert
 from src.moe import MixtureOfExpertsPolicy
 from src.solver import directed_search
+from src.experiment import EXPERT_SPECS
 
-RESULTS = Path("results_v2")
-model_paths = sorted((RESULTS / "models").glob("*.json"))
-if not model_paths:
-    raise SystemExit("First run: python run_experiment.py")
-experts = [QLearningExpert.load(path) for path in model_paths]
-raw = json.loads((RESULTS / "prior_strengths.json").read_text(encoding="utf-8"))
+
+ROOT = Path(__file__).resolve().parent
+
+RESULTS = ROOT / "results_v2"
+
+MODEL_DIR = RESULTS / "models"
+
+PRIOR_FILE = RESULTS / "prior_strengths.json"
+
+
+
+if not PRIOR_FILE.exists():
+    raise FileNotFoundError(
+        "prior_strengths.json not found. "
+        "Run run_experiment.py first."
+    )
+
+
+
+# مهم:
+# ترتیب باید دقیقاً مثل experiment.py باشد
+expert_names = list(EXPERT_SPECS.keys())
+
+
+experts = []
+
+for name in expert_names:
+
+    path = MODEL_DIR / f"{name}.json"
+
+    if not path.exists():
+        raise FileNotFoundError(
+            f"Missing model: {path}"
+        )
+
+    experts.append(
+        QLearningExpert.load(path)
+    )
+
+
+
+raw = json.loads(
+    PRIOR_FILE.read_text(
+        encoding="utf-8"
+    )
+)
+
+
+
 prior_maps = []
-for expert_map in raw:
-    prior_maps.append({tuple(map(int, key.split(","))): value for key, value in expert_map.items()})
 
-env = SafeControllerGrid(13, 9, seed=50_003)
-policy = MixtureOfExpertsPolicy(experts, prior_maps, n=env.n, k=env.k, top_k=3)
-result = directed_search(env, policy, budget=80)
-print("regime:", env.regime)
-print("weights:", {e.name: round(float(w), 3) for e, w in zip(experts, policy.weights)})
-print("solved:", result.solved, "expansions:", result.expansions)
-print(env.render_ascii(result.path))
+for item in raw:
+
+    converted = {}
+
+    for key,value in item.items():
+
+        n,k = key.split(",")
+
+        converted[
+            (int(n),int(k))
+        ] = float(value)
+
+
+    prior_maps.append(converted)
+
+
+
+env = SafeControllerGrid(
+    13,
+    9,
+    seed=50003
+)
+
+
+
+policy = MixtureOfExpertsPolicy(
+
+    experts=experts,
+
+    prior_maps=prior_maps,
+
+    n=env.n,
+
+    k=env.k,
+
+    top_k=2,
+
+    prior_scale=10.0,
+
+    beta=0.35,
+
+    gamma=0.45,
+
+    weight_floor=0.01
+)
+
+
+
+result = directed_search(
+    env,
+    policy,
+    budget=80
+)
+
+
+
+weights = policy.weights
+
+
+
+print(
+    "regime:",
+    env.regime
+)
+
+
+
+print(
+    "weights:",
+    {
+        e.name: round(float(w),3)
+        for e,w in zip(
+            experts,
+            weights
+        )
+    }
+)
+
+
+
+print(
+    "solved:",
+    result.solved,
+    "expansions:",
+    result.expansions
+)
+
+
+
+print(
+    env.render_ascii(
+        result.path
+    )
+)

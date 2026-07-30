@@ -1,0 +1,107 @@
+{
+  "expert_order": [
+    "expert_wide_small",
+    "expert_wide_large",
+    "expert_tall_small",
+    "expert_tall_large",
+    "expert_balanced_small",
+    "expert_balanced_large"
+  ],
+  "expert_specs": {
+    "expert_wide_small": [
+      [
+        6,
+        2
+      ],
+      [
+        7,
+        3
+      ],
+      [
+        8,
+        3
+      ],
+      [
+        9,
+        4
+      ]
+    ],
+    "expert_wide_large": [
+      [
+        10,
+        4
+      ],
+      [
+        11,
+        5
+      ],
+      [
+        12,
+        5
+      ],
+      [
+        13,
+        6
+      ]
+    ],
+    "expert_tall_small": [
+      [
+        3,
+        6
+      ],
+      [
+        3,
+        7
+      ],
+      [
+        4,
+        8
+      ],
+      [
+        4,
+        9
+      ]
+    ],
+    "expert_tall_large": [
+      [
+        5,
+        10
+      ],
+      [
+        5,
+        11
+      ],
+      [
+        6,
+        12
+      ],
+      [
+        6,
+        13
+      ]
+    ],
+    "expert_balanced_small": [
+      [
+        5,
+        5
+      ],
+      [
+        6,
+        6
+      ]
+    ],
+    "expert_balanced_large": [
+      [
+        8,
+        8
+      ],
+      [
+        9,
+        9
+      ]
+    ]
+  },
+  "budget": 25,
+  "seed": 42,
+  "eval_seeds": 10
+}
