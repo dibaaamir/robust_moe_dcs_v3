@@ -1,3 +1,5 @@
+# src/moe.py
+
 from __future__ import annotations
 
 from dataclasses import dataclass
@@ -17,123 +19,104 @@ class MixtureOfExpertsPolicy:
 
     beta: float = 0.35
     gamma: float = 0.55
-
     prior_scale: float = 5.0
 
     temperature: float = 1.25
 
     top_k: int | None = 2
 
-    weight_floor: float = 0.01
+    weight_floor: float = 0.0
 
 
-    def _nearest_prior(self, prior_map, n, k):
+    def _nearest_prior(
+            self,
+            prior_map,
+            n,
+            k):
 
         if (n, k) in prior_map:
+
             return prior_map[(n, k)]
 
 
-        vals=[]
+        vals = []
 
-        for (pn,pk),v in prior_map.items():
+        for (pn, pk), value in prior_map.items():
 
-            d=abs(pn-n)+abs(pk-k)
+            distance = abs(pn - n) + abs(pk - k)
 
             vals.append(
-                (d,v)
+                (
+                    distance,
+                    value
+                )
             )
 
 
         vals.sort(
-            key=lambda x:x[0]
+            key=lambda x: x[0]
         )
 
 
-        vals=vals[:4]
+        vals = vals[:4]
 
 
         if not vals:
+
             return 0.0
 
 
-        w=np.array(
+        weights = np.array(
             [
-                1/(d+1)
-                for d,_ in vals
+                1 / (d + 1)
+                for d, _ in vals
             ]
         )
 
 
         return float(
             np.dot(
-                w,
+                weights,
                 [
                     v
-                    for _,v in vals
+                    for _, v in vals
                 ]
             )
             /
-            w.sum()
+            weights.sum()
         )
 
 
 
-    def _regime_similarity(self, expert, env):
+    def _weights_at(
+            self,
+            env,
+            state):
 
-        ratio = env.n / max(env.k,1)
-
-
-        if ratio > 1.5:
-
-            current="wide"
+        scores = []
 
 
-        elif ratio < 0.66:
+        for i, expert in enumerate(self.experts):
 
-            current="tall"
-
-
-        else:
-
-            current="balanced"
-
-
-
-        if current in expert.name:
-
-            return 1.5
-
-
-        return 0.6
-
-
-
-    def _weights_at(self, env, state):
-
-        scores=[]
-
-
-        for i,e in enumerate(self.experts):
-
-
-            probs=e.action_probabilities(
+            probs = expert.action_probabilities(
                 env,
                 state,
                 self.temperature
             )
 
 
-            p=probs[
-                probs>0
+            p = probs[
+                probs > 0
             ]
 
 
             if len(p):
 
-                entropy=(
+                entropy = (
                     -np.sum(
-                        p*np.log(
-                            p+1e-12
+                        p *
+                        np.log(
+                            p + 1e-12
                         )
                     )
                     /
@@ -144,168 +127,159 @@ class MixtureOfExpertsPolicy:
                 )
 
 
-                q=np.sort(p)[::-1]
+                sorted_probs = np.sort(
+                    p
+                )[::-1]
 
 
-                margin=(
-                    q[0]-q[1]
-                    if len(q)>1
-                    else q[0]
+                margin = (
+                    sorted_probs[0]
+                    -
+                    sorted_probs[1]
+                    if len(sorted_probs) > 1
+                    else sorted_probs[0]
                 )
 
 
             else:
 
-                entropy=1.0
-                margin=0.0
+                entropy = 1.0
+
+                margin = 0.0
 
 
 
-            prior=self._nearest_prior(
+            prior = self._nearest_prior(
                 self.prior_maps[i],
                 self.n,
                 self.k
             )
 
 
-
-            regime_bonus=self._regime_similarity(
-                e,
-                env
-            )
-
-
-            score=(
-
-                self.prior_scale
-                *
-                prior
-
-                +
-
-                np.log(regime_bonus)
-
+            score = (
+                self.prior_scale * prior
                 -
-
-                self.beta*entropy
-
+                self.beta * entropy
                 +
-
-                self.gamma*margin
-
+                self.gamma * margin
             )
 
 
-            scores.append(score)
+            scores.append(
+                score
+            )
 
 
-
-        scores=np.array(scores)
-
-
-
-        if self.top_k and self.top_k<len(scores):
-
-            idx=np.argsort(scores)[-self.top_k:]
+        scores = np.array(
+            scores
+        )
 
 
-            mask=np.full_like(
+        if self.top_k and self.top_k < len(scores):
+
+            idx = np.argsort(scores)[-self.top_k:]
+
+
+            mask = np.full_like(
                 scores,
                 -np.inf
             )
 
 
-            mask[idx]=scores[idx]
+            mask[idx] = scores[idx]
 
-
-            scores=mask
-
+            scores = mask
 
 
 
-        finite=np.isfinite(scores)
+        finite = np.isfinite(
+            scores
+        )
 
 
-        scores[finite]-=scores[finite].max()
+        scores[finite] -= (
+            scores[finite].max()
+        )
 
 
-        weights=np.zeros_like(scores)
+        weights = np.zeros_like(
+            scores
+        )
 
 
-        weights[finite]=np.exp(
+        weights[finite] = np.exp(
             scores[finite]
         )
 
 
-
         if self.weight_floor:
 
-            weights[finite]+=self.weight_floor
+            weights[finite] += self.weight_floor
 
 
 
-        weights/=weights.sum()
-
-
-        return weights
-
+        return (
+            weights /
+            weights.sum()
+        )
 
 
 
     def action_probabilities(
             self,
             env: SafeControllerGrid,
-            state: GridState
-    ):
-
-        valid=env.valid_actions(state)
+            state: GridState):
 
 
-        out=np.zeros(
+        valid = env.valid_actions(
+            state
+        )
+
+
+        output = np.zeros(
             len(ACTIONS)
         )
 
 
         if not valid:
 
-            return out
+            return output
 
 
 
-        weights=self._weights_at(
+        weights = self._weights_at(
             env,
             state
         )
 
 
-        log_scores=np.zeros(
+        log_scores = np.zeros(
             len(ACTIONS)
         )
 
 
-        for w,e in zip(
+        for weight, expert in zip(
             weights,
             self.experts
         ):
 
+            if weight <= 0:
 
-            if w<=0:
                 continue
 
 
-
-            p=e.action_probabilities(
+            probs = expert.action_probabilities(
                 env,
                 state,
                 self.temperature
             )
 
 
-            log_scores[valid]+=(
-                w*
+            log_scores[valid] += (
+                weight *
                 np.log(
                     np.maximum(
-                        p[valid],
+                        probs[valid],
                         1e-8
                     )
                 )
@@ -313,23 +287,24 @@ class MixtureOfExpertsPolicy:
 
 
 
-        vals=log_scores[valid]
+        values = log_scores[valid]
 
 
-        vals-=vals.max()
+        values -= values.max()
 
 
-        vals=np.exp(vals)
-
-
-
-        out[valid]=(
-            vals/
-            vals.sum()
+        values = np.exp(
+            values
         )
 
 
-        self.weights=weights
+        output[valid] = (
+            values /
+            values.sum()
+        )
 
 
-        return out
+        self.weights = weights
+
+
+        return output

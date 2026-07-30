@@ -26,8 +26,6 @@ if not PRIOR_FILE.exists():
 
 
 
-# مهم:
-# ترتیب باید دقیقاً مثل experiment.py باشد
 expert_names = list(EXPERT_SPECS.keys())
 
 

@@ -1,3 +1,5 @@
+# src/experiment.py
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -14,97 +16,127 @@ from .solver import directed_search
 from .moe import MixtureOfExpertsPolicy
 
 
+
 EXPERT_SPECS = {
 
     "expert_wide_small": [
         (6, 2),
         (7, 3),
         (8, 3),
-        (9, 4),
+        (9, 4)
     ],
 
     "expert_wide_large": [
         (10, 4),
         (11, 5),
         (12, 5),
-        (13, 6),
+        (13, 6)
     ],
 
     "expert_tall_small": [
         (3, 6),
         (3, 7),
         (4, 8),
-        (4, 9),
+        (4, 9)
     ],
 
     "expert_tall_large": [
         (5, 10),
         (5, 11),
         (6, 12),
-        (6, 13),
+        (6, 13)
     ],
 
     "expert_balanced_small": [
         (5, 5),
-        (6, 6),
+        (6, 6)
     ],
 
     "expert_balanced_large": [
         (8, 8),
-        (9, 9),
+        (9, 9)
     ],
 }
 
 
 
-def train_experts(output_dir, episodes, seed):
+
+def train_experts(
+        output_dir,
+        episodes,
+        seed):
+
 
     model_dir = output_dir / "models"
+
     model_dir.mkdir(
         parents=True,
         exist_ok=True
     )
 
+
     experts = []
 
-    for idx, (name, sizes) in enumerate(EXPERT_SPECS.items()):
+
+    for idx, (name, sizes) in enumerate(
+        EXPERT_SPECS.items()
+    ):
+
 
         expert = QLearningExpert(
             name=name,
-            seed=seed + idx * 101
+            seed=seed + 101 * idx
         )
+
 
         expert.train_distribution(
             sizes,
             episodes=episodes
         )
 
+
         expert.save(
             model_dir / f"{name}.json"
         )
 
-        experts.append(expert)
+
+        experts.append(
+            expert
+        )
+
 
         print(
             f"trained {name} on {sizes}"
         )
+
 
     return experts
 
 
 
 
-def calibration_points(max_n, max_k):
+def calibration_points(
+        max_n,
+        max_k):
+
 
     points = []
 
-    for n in range(3, max_n + 1):
 
-        for k in range(2, max_k + 1):
+    for n in range(
+        3,
+        max_n + 1
+    ):
+
+        for k in range(
+            2,
+            max_k + 1
+        ):
 
             points.append(
                 (n, k)
             )
+
 
     return points
 
@@ -117,26 +149,33 @@ def build_prior_maps(
         budget,
         seeds=5):
 
+
     maps = [
         {}
         for _ in experts
     ]
 
 
+
     for n, k in points:
+
 
         for i, expert in enumerate(experts):
 
-            solved = []
-            efficiency = []
+
+            solved_flags = []
+
+            efficiencies = []
+
 
 
             for s in range(seeds):
 
+
                 env = SafeControllerGrid(
                     n,
                     k,
-                    seed=20000+s
+                    seed=20000 + s
                 )
 
 
@@ -147,39 +186,48 @@ def build_prior_maps(
                 )
 
 
-                solved.append(
-                    float(result.solved)
+                solved_flags.append(
+                    float(
+                        result.solved
+                    )
                 )
 
 
-                efficiency.append(
-                    (budget-result.expansions)/budget
+                efficiencies.append(
+                    (
+                        budget -
+                        result.expansions
+                    )
+                    /
+                    budget
                     if result.solved
                     else 0.0
                 )
 
 
+
             maps[i][(n,k)] = float(
-                0.8*np.mean(solved)
+
+                np.mean(
+                    solved_flags
+                )
+
                 +
-                0.2*np.mean(efficiency)
+
+                0.10 *
+                np.mean(
+                    efficiencies
+                )
+
             )
 
 
     return maps
 
-
-
-
-def _policies(
-        experts,
-        prior_maps,
-        n,
-        k):
-
+def _policies(experts, prior_maps, n, k):
 
     policies = {
-        e.name:e
+        e.name: e
         for e in experts
     }
 
@@ -187,37 +235,38 @@ def _policies(
     policies["moe_sparse_top1"] = MixtureOfExpertsPolicy(
         experts,
         prior_maps,
-        n,
-        k,
+        n=n,
+        k=k,
         top_k=1,
         prior_scale=10.0,
         beta=0.0,
-        gamma=0.0
+        gamma=0.0,
+        weight_floor=0.0
     )
 
 
     policies["moe_top2"] = MixtureOfExpertsPolicy(
         experts,
         prior_maps,
-        n,
-        k,
+        n=n,
+        k=k,
         top_k=2,
-        prior_scale=10.0,
-        beta=0.35,
-        gamma=0.45,
-        weight_floor=0.01
+        prior_scale=8.0,
+        beta=0.20,
+        gamma=0.30,
+        weight_floor=0.0
     )
 
 
     policies["moe_top3"] = MixtureOfExpertsPolicy(
         experts,
         prior_maps,
-        n,
-        k,
+        n=n,
+        k=k,
         top_k=3,
-        prior_scale=3.0,
-        beta=0.20,
-        gamma=0.25,
+        prior_scale=5.0,
+        beta=0.25,
+        gamma=0.35,
         weight_floor=0.005
     )
 
@@ -225,15 +274,14 @@ def _policies(
     policies["moe_all"] = MixtureOfExpertsPolicy(
         experts,
         prior_maps,
-        n,
-        k,
+        n=n,
+        k=k,
         top_k=None,
         prior_scale=2.0
     )
 
 
     return policies
-
 
 
 
@@ -245,12 +293,13 @@ def evaluate(
         eval_seeds):
 
 
-    records = []
+    records=[]
 
 
     for n,k in test_points:
 
-        policies = _policies(
+
+        policies=_policies(
             experts,
             prior_maps,
             n,
@@ -258,17 +307,18 @@ def evaluate(
         )
 
 
-        for policy_name, policy in policies.items():
+        for name,policy in policies.items():
 
-            success = []
-            all_expansions = []
-            success_expansions = []
-            elapsed = []
+            successes=[]
+            all_exp=[]
+            success_exp=[]
+            times=[]
 
 
             for s in range(eval_seeds):
 
-                env = SafeControllerGrid(
+
+                env=SafeControllerGrid(
                     n,
                     k,
                     seed=50000+s
@@ -278,31 +328,31 @@ def evaluate(
                 start=time.perf_counter()
 
 
-                result = directed_search(
+                result=directed_search(
                     env,
                     policy,
                     budget
                 )
 
 
-                elapsed.append(
+                times.append(
                     time.perf_counter()-start
                 )
 
 
-                success.append(
+                successes.append(
                     int(result.solved)
                 )
 
 
-                all_expansions.append(
+                all_exp.append(
                     result.expansions
                 )
 
 
                 if result.solved:
 
-                    success_expansions.append(
+                    success_exp.append(
                         result.expansions
                     )
 
@@ -312,22 +362,21 @@ def evaluate(
 
                 "n":n,
                 "k":k,
-
-                "policy":policy_name,
+                "policy":name,
 
                 "success_rate":
-                    float(np.mean(success)),
+                    float(np.mean(successes)),
 
                 "mean_expansions_all":
-                    float(np.mean(all_expansions)),
+                    float(np.mean(all_exp)),
 
                 "mean_expansions_success":
-                    float(np.mean(success_expansions))
-                    if success_expansions
+                    float(np.mean(success_exp))
+                    if success_exp
                     else np.nan,
 
                 "mean_seconds":
-                    float(np.mean(elapsed))
+                    float(np.mean(times))
             })
 
 
@@ -335,10 +384,9 @@ def evaluate(
 
 
 
-
 def add_oracle_baseline(df, expert_names):
 
-    expert_df = df[
+    expert_df=df[
         df.policy.isin(expert_names)
     ]
 
@@ -346,11 +394,11 @@ def add_oracle_baseline(df, expert_names):
     rows=[]
 
 
-    for (n,k), group in expert_df.groupby(
+    for (n,k),group in expert_df.groupby(
         ["n","k"]
     ):
 
-        row = group.sort_values(
+        row=group.sort_values(
             [
                 "success_rate",
                 "mean_expansions_success"
@@ -362,9 +410,10 @@ def add_oracle_baseline(df, expert_names):
         ).iloc[0].copy()
 
 
-        row["policy"] = "oracle_best_expert"
+        row["policy"]="oracle_best_expert"
 
         rows.append(row)
+
 
 
     return pd.concat(
@@ -374,7 +423,6 @@ def add_oracle_baseline(df, expert_names):
         ],
         ignore_index=True
     )
-
 
 
 
@@ -409,13 +457,11 @@ def summarize(df):
 
 
 
-
 def plot_heatmap(df, policy, output):
 
     subset=df[
         df.policy==policy
     ]
-
 
     if subset.empty:
         return
@@ -428,7 +474,7 @@ def plot_heatmap(df, policy, output):
     )
 
 
-    fig, ax = plt.subplots(
+    fig,ax=plt.subplots(
         figsize=(9,6)
     )
 
@@ -442,7 +488,6 @@ def plot_heatmap(df, policy, output):
 
 
     ax.set_title(policy)
-
 
     fig.colorbar(
         image,
@@ -463,15 +508,14 @@ def plot_heatmap(df, policy, output):
 
 
 
-
 def plot_summary(summary, output):
 
-    shown = summary[
+    shown=summary[
         summary.policy!="oracle_best_expert"
     ]
 
 
-    fig, ax = plt.subplots(
+    fig,ax=plt.subplots(
         figsize=(12,5)
     )
 
@@ -501,7 +545,6 @@ def plot_summary(summary, output):
 
 
 
-
 def run(
         output_dir="results_v2",
         episodes=1600,
@@ -514,7 +557,7 @@ def run(
         eval_seeds=10):
 
 
-    output = Path(output_dir)
+    output=Path(output_dir)
 
     output.mkdir(
         parents=True,
@@ -522,31 +565,33 @@ def run(
     )
 
 
-    experts = train_experts(
+    experts=train_experts(
         output,
         episodes,
         seed
     )
 
 
-    cal_points = calibration_points(
+    cal_points=calibration_points(
         calibration_max_n,
         calibration_max_k
     )
 
 
-    prior_maps = build_prior_maps(
+    prior_maps=build_prior_maps(
         experts,
         cal_points,
         budget
     )
 
 
-    serial_priors = [
+    serial_priors=[
+
         {
             f"{n},{k}":float(v)
             for (n,k),v in m.items()
         }
+
         for m in prior_maps
     ]
 
@@ -560,35 +605,24 @@ def run(
     )
 
 
+    test_points=[
 
-    (output/"experiment_config.json").write_text(
-        json.dumps(
-            {
-                "expert_order":[
-                    e.name
-                    for e in experts
-                ],
-                "expert_specs":EXPERT_SPECS,
-                "budget":budget,
-                "seed":seed,
-                "eval_seeds":eval_seeds
-            },
-            indent=2
-        ),
-        encoding="utf-8"
-    )
-
-
-
-    test_points = [
         (n,k)
-        for n in range(test_min,test_max+1)
-        for k in range(test_min,test_max+1)
+
+        for n in range(
+            test_min,
+            test_max+1
+        )
+
+        for k in range(
+            test_min,
+            test_max+1
+        )
     ]
 
 
 
-    df = evaluate(
+    df=evaluate(
         experts,
         prior_maps,
         test_points,
@@ -597,7 +631,7 @@ def run(
     )
 
 
-    df = add_oracle_baseline(
+    df=add_oracle_baseline(
         df,
         [
             e.name
@@ -612,15 +646,13 @@ def run(
     )
 
 
-
-    summary = summarize(df)
+    summary=summarize(df)
 
 
     summary.to_csv(
         output/"summary.csv",
         index=False
     )
-
 
 
     for policy in df.policy.unique():
