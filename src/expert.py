@@ -73,9 +73,9 @@ class QLearningExpert:
             elif "balanced" in self.name:
 
                 self.action_prior = (
-                    0.25,
-                    0.25,
-                    0.50
+                    0.4,
+                    0.4,
+                    0.2
                 )
 
 
